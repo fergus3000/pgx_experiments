@@ -1,0 +1,5 @@
+comment = 'agg_summary_stats  Created by pgx'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/agg_summary_stats'
+relocatable = false
+superuser = false
