@@ -1,0 +1,5 @@
+comment = 'max_timed:  Created by pgx'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/max_timed'
+relocatable = false
+superuser = false
