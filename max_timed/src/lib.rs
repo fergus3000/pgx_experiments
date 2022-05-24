@@ -13,6 +13,7 @@ pub struct MaxTimedState {
 impl Aggregate for MaxTimedState {
     const NAME: &'static str = "max_timed_pgx";
     type State = Internal;
+    // typical invocation SELECT max_timed_pgx(instant, temperature) FROM weather_data;
     type Args = (
         pgx::name!(timestamp, Option<pg_sys::TimestampTz>),
         pgx::name!(max, Option<i32>),
