@@ -16,19 +16,19 @@ pg14 = ["pgx/pg14", "pgx-tests/pg14" ]
 pg_test = []
 
 [dependencies]
-pgx = { path = "../../pgx", default-features = false }
+pgx = "0.4.3"
 serde = "1.0.137"
 
 [dev-dependencies]
-pgx-tests = { path = "../../pgx-tests" }
+pgx-tests = "0.4.3"
 
 # uncomment these if compiling outside of 'pgx'
-# [profile.dev]
-# panic = "unwind"
-# lto = "thin"
+[profile.dev]
+panic = "unwind"
+lto = "thin"
 
-# [profile.release]
-# panic = "unwind"
-# opt-level = 3
-# lto = "fat"
-# codegen-units = 1
+[profile.release]
+panic = "unwind"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
