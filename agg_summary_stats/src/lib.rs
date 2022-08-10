@@ -41,7 +41,10 @@ impl IntegerAvgState {
 
     #[inline(always)]
     fn finalize(current: <Self as Aggregate>::State) -> <Self as Aggregate>::Finalize {
-        current.sum / current.n
+        let average = current.sum / current.n;
+        //let summary_agg: [i32; 4] = [average, current.min, current.max, current.n];
+        //summary_agg
+        average
     }
 }
 
@@ -93,7 +96,7 @@ impl Aggregate for IntegerAvgState {
     }
 
     // You can skip all these:
-    type Finalize = i32;
+    type Finalize = i32; // << here we say that the end result of the aggregate is an int 32
     // type OrderBy = i32;
     // type MovingState = i32;
 
