@@ -1,186 +1,59 @@
-/*
-Portions Copyright 2019-2021 ZomboDB, LLC.
-Portions Copyright 2021-2022 Technology Concepts & Design, Inc. <support@tcdi.com>
-
-All rights reserved.
-
-Use of this source code is governed by the MIT license that can be found in the LICENSE file.
-*/
-use pgx::cstr_core::CStr;
 use pgx::*;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 pg_module_magic!();
 
-#[derive(Copy, Clone, PostgresType, Serialize, Deserialize)]
-#[pgvarlena_inoutfuncs]
-pub struct IntegerAvgState {
-    sum: i32,
-    n: i32,
-    min: i32,
-    max: i32
+#[derive(Default)] // this gives our struct an implicit default. Other things you could derive, but not needed here
+pub struct IntegerAvgState { // this is our state for aggregation, not necessarily what we will return
+    xsum: i32,
+    xn: i32,
+    xmin: i32,
+    xmax: i32
 }
 
-impl IntegerAvgState {
-    #[inline(always)]
+// define implementation for our aggregate
+#[pg_aggregate]
+impl Aggregate for IntegerAvgState 
+{
+    const NAME: &'static str = "summary_stats_pgx";
+    type State = Internal;
+    type Args = i32; // we just have 1 argument, an int32. Typical invocation: SELECT summary_stats_pgx(some_integer_column) FROM some_table;
+    type Finalize = pgx::JsonB; // the Finalize declares what we will return from our aggregate function - we're going to return a jsonb
+
+
+    #[pgx(immutable)]
     fn state(
-        mut current: <Self as Aggregate>::State,
-        arg: <Self as Aggregate>::Args,
-    ) -> <Self as Aggregate>::State {
-        current.sum += arg;
-        current.n += 1;
-        if arg > current.max {
-            current.max = arg;
+        mut current: Self::State,
+        val: Self::Args, // here's that arg as declared above
+        _fcinfo: pg_sys::FunctionCallInfo,
+    ) -> Self::State 
+    {
+        let inner = unsafe { current.get_or_insert_default::<IntegerAvgState>() }; // if its our first row, we get a default state. Default impl is delivered courtesy of #[derive(Default)]
+        // implementation starts here...
+        inner.xsum += val;
+        inner.xn += 1;
+        if (val < inner.xmin) {
+            inner.xmin = val;
         }
-        if arg < current.min {
-            current.min = arg;
+        if (val > inner.xmax) {
+            inner.xmax = val;
         }
         current
     }
 
-    #[inline(always)]
-    fn finalize(current: <Self as Aggregate>::State) -> <Self as Aggregate>::Finalize {
-        let average = current.sum / current.n;
-        //let summary_agg: [i32; 4] = [average, current.min, current.max, current.n];
-        //summary_agg
-        average
-    }
-}
-
-impl PgVarlenaInOutFuncs for IntegerAvgState {
-    fn input(input: &CStr) -> PgVarlena<Self> {
-        let mut result = PgVarlena::<Self>::new();
-
-        let mut split = input.to_bytes().split(|b| *b == b',');
-        let sum = split
-            .next()
-            .map(|value| {
-                i32::from_str(unsafe { std::str::from_utf8_unchecked(value) }).expect("invalid i32")
-            })
-            .expect("expected sum");
-        let n = split
-            .next()
-            .map(|value| {
-                i32::from_str(unsafe { std::str::from_utf8_unchecked(value) }).expect("invalid i32")
-            })
-            .expect("expected n");
-
-        result.sum = sum;
-        result.n = n;
-
-        result
-    }
-    fn output(&self, buffer: &mut StringInfo) {
-        buffer.push_str(&format!("{},{}", self.sum, self.n));
-    }
-}
-
-// In order to improve the testability of your code, it's encouraged to make this implementation
-// call to your own functions which don't require a PostgreSQL made [`pgx::pg_sys::FunctionCallInfo`].
-#[pg_aggregate]
-impl Aggregate for IntegerAvgState {
-    type State = PgVarlena<Self>;
-    type Args = pgx::name!(value, i32);
-    const NAME: &'static str = "DEMOAVG";
-
-    const INITIAL_CONDITION: Option<&'static str> = Some("0,0");
-
-    #[pgx(parallel_safe, immutable)]
-    fn state(
-        current: Self::State,
-        arg: Self::Args,
-        _fcinfo: pg_sys::FunctionCallInfo,
-    ) -> Self::State {
-        Self::state(current, arg)
-    }
-
-    // You can skip all these:
-    type Finalize = i32; // << here we say that the end result of the aggregate is an int 32
-    // type OrderBy = i32;
-    // type MovingState = i32;
-
-    // const PARALLEL: Option<ParallelOption> = Some(ParallelOption::Safe);
-    // const FINALIZE_MODIFY: Option<FinalizeModify> = Some(FinalizeModify::ReadWrite);
-    // const MOVING_FINALIZE_MODIFY: Option<FinalizeModify> = Some(FinalizeModify::ReadWrite);
-
-    // const SORT_OPERATOR: Option<&'static str> = Some("sortop");
-    // const MOVING_INITIAL_CONDITION: Option<&'static str> = Some("1,1");
-    // const HYPOTHETICAL: bool = true;
-
-    // You can skip all these:
     fn finalize(
         current: Self::State,
         _direct_args: Self::OrderedSetArgs,
         _fcinfo: pgx::pg_sys::FunctionCallInfo,
-    ) -> Self::Finalize {
-        Self::finalize(current)
-    }
-
-    // fn combine(current: Self::State, _other: Self::State, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> Self::State {
-    //     unimplemented!()
-    // }
-
-    // fn serial(current: Self::State, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> Vec<u8> {
-    //     unimplemented!()
-    // }
-
-    // fn deserial(current: Self::State, _buf: Vec<u8>, _internal: PgBox<Self::State>, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> PgBox<Self::State> {
-    //     unimplemented!()
-    // }
-
-    // fn moving_state(_mstate: Self::MovingState, _v: Self::Args, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> Self::MovingState {
-    //     unimplemented!()
-    // }
-
-    // fn moving_state_inverse(_mstate: Self::MovingState, _v: Self::Args, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> Self::MovingState {
-    //     unimplemented!()
-    // }
-
-    // fn moving_finalize(_mstate: Self::MovingState, _fcinfo: pgx::pg_sys::FunctionCallInfo) -> Self::Finalize {
-    //     unimplemented!()
-    // }
-}
-
-impl Default for IntegerAvgState {
-    fn default() -> Self {
-        Self { sum: 0, n: 0, max: 0, min:0 }
-    }
-}
-
-#[cfg(any(test, feature = "pg_test"))]
-#[pg_schema]
-mod tests {
-    use crate::IntegerAvgState;
-    use pgx::*;
-
-    #[pg_test]
-    fn test_integer_avg_state() {
-        let avg_state = PgVarlena::<IntegerAvgState>::default();
-        let avg_state = IntegerAvgState::state(avg_state, 1);
-        let avg_state = IntegerAvgState::state(avg_state, 2);
-        let avg_state = IntegerAvgState::state(avg_state, 3);
-        assert_eq!(2, IntegerAvgState::finalize(avg_state),);
-    }
-
-    #[pg_test]
-    fn test_integer_avg_state_sql() {
-        Spi::run("CREATE TABLE demo_table (value INTEGER);");
-        Spi::run("INSERT INTO demo_table (value) VALUES (1), (2), (3);");
-        let retval = Spi::get_one::<i32>("SELECT DEMOAVG(value) FROM demo_table;")
-            .expect("SQL select failed");
-        assert_eq!(retval, 2);
-    }
-}
-
-#[cfg(test)]
-pub mod pg_test {
-    pub fn setup(_options: Vec<&str>) {
-        // perform one-off initialization when the pg_test framework starts
-    }
-
-    pub fn postgresql_conf_options() -> Vec<&'static str> {
-        // return any postgresql.conf settings that are required for your tests
-        vec![]
+    ) -> Self::Finalize 
+    {
+        let inner = unsafe { current.get::<Self>().unwrap() };
+        // convert to jsonb for return
+        // todo: return min,max,avg,count instead. Just want to test if this works first :)
+        pgx::JsonB(serde_json::json!({
+            "n": inner.xn,
+            "max" : inner.xmax,
+            "min" : inner.xmin,
+            "sum" : inner.xsum
+        }))
     }
 }
