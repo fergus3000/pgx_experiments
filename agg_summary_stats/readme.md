@@ -1,10 +1,11 @@
 # agg_summary_stats
-Trying to create my own aggregate pgx function to obtain the Avg,Min,Max,Count for an aggregate as an array. Project is based on the tdci_aggregate example, and is not complete yet.
+Trying to create my own aggregate pgx function to obtain the Sum,Min,Max,Count for an aggregate as an array. Project is based on the max_timed example, and is usable but incomplete.
 
 So far, it creates a summary stats aggregate that handles int32s, and returns Jsonb containing min, max, sum, count.
 
 Usage:
 Build and run the project with:
+
 `cargo pgx run pg13 --release`
 
 Then within the psql prompt setup some data:
@@ -25,8 +26,11 @@ FROM generate_series('2020-01-01'::timestamptz,'2020-01-01'::timestamptz + ((100
 ```
 
 A simple query would be:
+
 `SELECT summary_stats_pgx(event_data) FROM some_timeseries;`
+
 Or to show the 1 minute aggregates on a given timeseries:
+
 ```
 SELECT ts.timeseries_id, date_trunc('minute', ts.event_time) AS agg_interval, summary_stats_pgx(ts.event_data)
 FROM some_timeseries ts
