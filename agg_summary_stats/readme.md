@@ -10,6 +10,9 @@ Build and run the project with:
 
 `cargo pgx run pg13 --release`
 
+Register the extension:
+CREATE EXTENSION agg_summary_stats;
+
 Then within the psql prompt setup some data:
 
 ```
